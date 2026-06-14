@@ -36,11 +36,6 @@ on:
         required: true
         type: string
         default: '2'
-      clean_build:
-        description: 'Очистить перед сборкой'
-        required: true
-        type: boolean
-        default: false
 
 jobs:
   build:
@@ -94,7 +89,6 @@ jobs:
           else
             lunch aosp_${{ inputs.device_codename }}-${{ inputs.build_type }}
           fi
-          if [ "${{ inputs.clean_build }}" = "true" ]; then make clobber; fi
           make -j${{ inputs.build_jobs }} otapackage || make -j${{ inputs.build_jobs }}
 
       - name: Collect artifacts
