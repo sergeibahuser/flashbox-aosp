@@ -1,0 +1,54 @@
+name: FlashBox AOSP Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_url:
+        description: 'Manifest URL'
+        required: true
+      branch:
+        description: 'Manifest branch'
+        required: true
+        default: 'main'
+      device:
+        description: 'Device codename'
+        required: true
+        default: 'a52'
+      rom:
+        description: 'ROM'
+        required: true
+        default: 'LineageOS'
+      preserve_vendor:
+        description: 'Preserve vendor blobs (true/false)'
+        required: false
+        default: 'true'
+
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openjdk-11-jdk curl git python3 unzip zip openssl
+
+      - name: Make build script executable
+        run: chmod +x build.sh
+
+      - name: Run build script
+        env:
+          INPUT_MANIFEST_URL: ${{ github.event.inputs.manifest_url }}
+          INPUT_BRANCH: ${{ github.event.inputs.branch }}
+          INPUT_DEVICE: ${{ github.event.inputs.device }}
+          INPUT_ROM: ${{ github.event.inputs.rom }}
+          INPUT_PRESERVE_VENDOR: ${{ github.event.inputs.preserve_vendor }}
+        run: ./build.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: flashbox-artifacts
+          path: work/*.zip;work/*.sha256;work/*.sig
