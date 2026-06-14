@@ -1,0 +1,12 @@
+{
+  "LineageOS": [
+    {
+      "full_name": "dragonGR/kernel_samsung_sm7125",
+      "html_url": "https://github.com/dragonGR/kernel_samsung_sm7125",
+      "description": "Upstream Kernel v4.14.336 for Galaxy A52 & A72 \u2013 LineageOS 21"
+    }
+  ],
+  "PixelExperience": [],
+  "crDroid": [],
+  "HavocOS": []
+}
