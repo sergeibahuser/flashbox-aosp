@@ -101,7 +101,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: firmware
-          path: aosp/rom/out || aosp/rom/*.zip || aosp/rom/*.img
+          path: |
+            aosp/rom/out
+            aosp/rom/*.zip
+            aosp/rom/*.img
 """,
 
     "scripts/discovery.py": """#!/usr/bin/env python3
@@ -277,7 +280,8 @@ def main():
         print("No token provided; discovery and workflow triggers will require a token later.")
     if args.build_exe:
         build_exe_if_requested(target_dir)
-    if args.git_push or (args.yes and ("--git-push" in sys.argv)):
+    # Simplified git-push decision logic: if user asked for git push or used -y (assume yes), proceed
+    if args.git_push or args.yes:
         print("Attempting git commit & push...")
         ok = git_commit_and_push(target_dir, args.branch)
         if not ok:
