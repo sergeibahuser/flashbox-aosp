@@ -1,0 +1,118 @@
+name: Build Android Firmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      rom_type:
+        description: 'Тип прошивки'
+        required: true
+        type: choice
+        options: [AOSP, LineageOS, PixelExperience, crDroid]
+        default: 'AOSP'
+      device_codename:
+        description: 'Кодовое имя устройства'
+        required: true
+        type: string
+        default: 'generic_arm64'
+      android_version:
+        description: 'Версия Android'
+        required: true
+        type: choice
+        options: ['14', '15', '16']
+        default: '16'
+      build_type:
+        description: 'Тип сборки'
+        required: true
+        type: choice
+        options: [user, userdebug, eng]
+        default: 'userdebug'
+      sync_jobs:
+        description: 'Потоков для sync'
+        required: true
+        type: string
+        default: '4'
+      build_jobs:
+        description: 'Потоков для сборки'
+        required: true
+        type: string
+        default: '2'
+      clean_build:
+        description: 'Очистить перед сборкой'
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Show config
+        run: |
+          echo "ROM: ${{ inputs.rom_type }}"
+          echo "Device: ${{ inputs.device_codename }}"
+          echo "Android: ${{ inputs.android_version }}"
+
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git gnupg flex bison gperf build-essential zip curl \
+            zlib1g-dev libc6-dev-i386 libncurses5 lib32ncurses5-dev x11proto-core-dev \
+            libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip \
+            fontconfig python3 python3-pip ccache repo openjdk-11-jdk-headless 2>/dev/null || true
+
+      - name: Setup ccache
+        run: |
+          ccache -M 20G
+          ccache -o compression=true
+
+      - name: Init AOSP repo
+        run: |
+          mkdir -p aosp && cd aosp
+          case "${{ inputs.android_version }}" in
+            14) BRANCH="android-14.0.0_r50" ;;
+            15) BRANCH="android-15.0.0_r10" ;;
+            16) BRANCH="android-16.0.0_r1"  ;;
+            *)  BRANCH="android-16.0.0_r1"  ;;
+          esac
+          repo init -u https://android.googlesource.com/platform/manifest -b "$BRANCH" --depth=1
+
+      - name: Sync sources
+        run: |
+          cd aosp
+          repo sync -c -j${{ inputs.sync_jobs }} --force-sync --no-clone-bundle --no-tags || \
+          repo sync -c -j${{ inputs.sync_jobs }} --force-sync --no-clone-bundle --no-tags
+
+      - name: Build
+        run: |
+          cd aosp
+          source build/envsetup.sh
+          if [ "${{ inputs.device_codename }}" = "generic_arm64" ]; then
+            lunch aosp_arm64-${{ inputs.build_type }}
+          else
+            lunch aosp_${{ inputs.device_codename }}-${{ inputs.build_type }}
+          fi
+          if [ "${{ inputs.clean_build }}" = "true" ]; then make clobber; fi
+          make -j${{ inputs.build_jobs }} otapackage || make -j${{ inputs.build_jobs }}
+
+      - name: Collect artifacts
+        if: always()
+        run: |
+          mkdir -p output
+          if [ -d aosp/out/target/product ]; then
+            find aosp/out/target/product -type f \( -name "*.img" -o -name "*.zip" \) \
+              -exec cp {} output/ \; 2>/dev/null || true
+          fi
+          echo "ROM: ${{ inputs.rom_type }}" > output/build-info.txt
+          echo "Device: ${{ inputs.device_codename }}" >> output/build-info.txt
+          echo "Date: $(date -u)" >> output/build-info.txt
+          ls -lh output/
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: firmware-${{ inputs.device_codename }}
+          path: output/*
+          retention-days: 30
